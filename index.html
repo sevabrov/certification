@@ -155,6 +155,16 @@ tr.det>td{padding:0; background:var(--surface-2); border-bottom:1px solid var(--
 .ct .who b{color:var(--ink); font-weight:600}
 .ct .none{color:var(--muted); font-size:12px; font-style:italic}
 .ct .more{font-family:var(--mono); font-size:10.5px; color:var(--muted)}
+/* Соцмережі — окремий рядок значків. Знайдене пошуком тьмяніше за те,
+   що взяте з сайту самої фірми: різна певність — різна вага на око. */
+.soc{display:flex; gap:4px; margin-top:2px}
+.soc a{font-family:var(--cond); font-weight:600; font-size:10.5px; letter-spacing:.04em;
+  padding:1px 5px; border:1px solid var(--line); border-radius:3px; text-decoration:none;
+  color:var(--muted); line-height:1.5}
+.soc a:hover{border-color:var(--accent); color:var(--accent)}
+.soc.guess a{border-style:dashed}
+.ct .soc a{border-bottom:1px solid var(--line)}
+.ct .soc a:hover{border-color:var(--accent)}
 
 /* индикатор достоверности: форма + цвет, не только цвет */
 .cf{font-family:var(--cond); font-size:9.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
@@ -397,7 +407,8 @@ function haystack(c){
     + c.suppliers.join(' ')+' '+c.buyers.join(' ')+' '+c.dests.join(' ')+' '
     + c.items.map(function(i){return i.desc;}).join(' ')+' '
     + (t.phones||[]).join(' ')+' '+(t.phones||[]).map(function(p){ return p.replace(/\D/g,''); }).join(' ')
-    + ' '+(t.emails||[]).join(' ')+' '+(t.site||'')+' '+(t.person||'')).toUpperCase();
+    + ' '+(t.emails||[]).join(' ')+' '+(t.site||'')+' '+(t.person||'')
+    + ' '+(c.soc ? ['fb','ig','li'].map(function(k){ return c.soc[k]||''; }).join(' ') : '')).toUpperCase();
   return c._h;
 }
 function inScope(c){
@@ -504,7 +515,24 @@ function contactCell(c){
     out.push('<span class="who"><b>'+esc(t.person)+'</b>'+(t.role ? ', '+esc(t.role.toLowerCase()) : '')+'</span>');
   }
   if(!out.length) out.push('<span class="none">'+esc(t.note || 'не знайдено')+'</span>');
+  out.push(socLinks(c));
   return '<div class="ct">'+out.join('')+'</div>';
+}
+var SOC_NAME = {fb:'Facebook', ig:'Instagram', li:'LinkedIn'};
+var SOC_TAG  = {fb:'FB', ig:'IG', li:'IN'};
+var SOC_SRC = {
+  site:  'посилання стоїть на сайті фірми',
+  search:'знайдено пошуком за назвою — звірте перед першим дзвінком',
+  group: 'сторінка групи компаній, не окремої юрособи'
+};
+function socLinks(c){
+  var s = c.soc;
+  if(!s) return '';
+  var a = ['fb','ig','li'].filter(function(k){ return s[k]; }).map(function(k){
+    return '<a href="'+esc(s[k])+'" target="_blank" rel="noopener nofollow" title="'
+      + esc(SOC_NAME[k] + ' — ' + SOC_SRC[s.src]) + '">' + SOC_TAG[k] + '</a>';
+  });
+  return a.length ? '<span class="soc'+(s.src === 'site' ? '' : ' guess')+'">'+a.join('')+'</span>' : '';
 }
 function regLinks(c){
   var e = c.edrpou;
@@ -548,6 +576,11 @@ function detail(c){
       return '<a class="eml" href="mailto:'+esc(m)+'">'+esc(m)+'</a>'; }).join(', ') + '</dd>';
   if(t.site)
     ct += '<dd><a href="'+esc(t.site)+'" target="_blank" rel="noopener nofollow">'+esc(t.site)+'</a></dd>';
+  if(c.soc)
+    ct += '<dd>' + ['fb','ig','li'].filter(function(k){ return c.soc[k]; }).map(function(k){
+      return '<a href="'+esc(c.soc[k])+'" target="_blank" rel="noopener nofollow">'
+        + esc(SOC_NAME[k] + ': ' + c.soc[k].replace(/^https:\/\/(www\.)?/, '')) + '</a>';
+    }).join(', ') + ' <span class="more">(' + esc(SOC_SRC[c.soc.src]) + ')</span></dd>';
   if(t.person) ct += '<dd><b>'+esc(t.person)+'</b>'+(t.role ? ' — '+esc(t.role.toLowerCase()) : '')+'</dd>';
   if(t.acc) ct += '<dd>'+esc(t.acc)+' — бухгалтер</dd>';
   if(!ct) ct = '<dd>'+esc(t.note || 'не знайдено')+'</dd>';
@@ -680,13 +713,15 @@ document.getElementById('tb').addEventListener('click', function(e){
 document.getElementById('copy').addEventListener('click', function(){
   var btn = this;
   var head = ['Не працюємо','Фірма','ЄДРПОУ','Регіон','Адреса',
-    'Телефон','Email','Сайт','Контактна особа','Посада','Стан у ЄДР','Джерело','Достовірність',
+    'Телефон','Email','Сайт','Facebook','Instagram','LinkedIn','Джерело соцмереж',
+    'Контактна особа','Посада','Стан у ЄДР','Джерело','Достовірність',
     'Напрямок','Категорії','Позицій','Вартість $','Місяців','Перша','Остання',
     'Постачальники з Китаю','Покупці за кордоном','Країни призначення','Коди УКТЗЕД'];
   var body = (window._rows || []).map(function(c){
-    var s = stat(c), t = c.ct;
+    var s = stat(c), t = c.ct, so = c.soc || {};
     return [isSkip(c) ? 'не працюємо' : '', c.name, c.edrpou, nice(c.region), c.addr,
       (t.phones || []).join(' | '), (t.emails || []).join(' | '), t.site || '',
+      so.fb || '', so.ig || '', so.li || '', so.src ? SOC_SRC[so.src] : '',
       t.person || '', t.role || '', t.status || '', t.src || '', CONF_LABEL[c.conf],
       c.flows.map(function(f){ return FLOW_LABEL[f]; }).join(' + '),
       Object.keys(s.cats).map(function(k){ return k+' ('+s.cats[k]+')'; }).join('; '),
